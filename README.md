@@ -1,6 +1,10 @@
 # A_Star_Algorithm
 Algorithm implementation and analysis for class project
 
+
+https://github.com/user-attachments/assets/79c88a34-7c49-496f-a612-38d0568b5385
+
+
 ## 🔍 Algoritmanın Ne Yaptığı
 A* algoritması, en kısa yolu bulmak için kullanılan bir arama algoritmasıdır.
 
