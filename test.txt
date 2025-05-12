@@ -1,0 +1,264 @@
+#include <iostream>
+#include <vector>
+#include <queue>
+#include <cmath>
+#include <algorithm>
+#include <limits>
+#include <unordered_map>
+
+using namespace std;
+// Grid boyutu
+const int MAX_GRID_SIZE = 50;
+
+// Düğüm yapısı
+struct Node {
+    int x, y;
+    int f, g, h;
+
+    Node(int _x = 0, int _y = 0) : x(_x), y(_y), f(0), g(0), h(0) {}
+
+    // Düğüm karşılaştırma için eşitlik operatörü
+    bool operator==(const Node& other) const {
+        return x == other.x && y == other.y;
+    }
+};
+
+// Düğüm için hash fonksiyonu
+namespace std {
+    template <>
+    struct hash<Node> {
+        size_t operator()(const Node& node) const {
+            return hash<int>()(node.x) ^ (hash<int>()(node.y) << 1);
+        }
+    };
+}
+
+// Düğüm karşılaştırma fonksiyonu
+struct CompareNode {
+    bool operator()(const Node& a, const Node& b) const {
+        return a.f > b.f;
+    }
+};
+
+class AStar {
+private:
+    int grid[MAX_GRID_SIZE][MAX_GRID_SIZE];
+    int width, height;
+
+    // Öklid mesafesi hesaplama (heuristik)
+    int calculateHeuristic(const Node& a, const Node& b) {
+        int dx = abs(a.x - b.x);
+        int dy = abs(a.y - b.y);
+        // Çapraz geçişi destekleyen heuristik
+        return dx + dy + min(dx, dy);
+    }
+
+    // Komşu düğümleri bulma
+    vector<Node> getNeighbors(const Node& current) {
+        vector<Node> neighbors;
+        int dx[] = {0, 0, 1, -1, 1, 1, -1, -1};
+        int dy[] = {1, -1, 0, 0, 1, -1, 1, -1};
+
+        for (int i = 0; i < 8; ++i) {
+            int newX = current.x + dx[i];
+            int newY = current.y + dy[i];
+
+            // Grid sınırları ve engel kontrolü
+            if (newX >= 0 && newX < width &&
+                newY >= 0 && newY < height &&
+                grid[newX][newY] != 1) {
+                neighbors.push_back(Node(newX, newY));
+            }
+        }
+        return neighbors;
+    }
+
+public:
+    AStar(int w, int h) : width(w), height(h) {
+        // Grid'i temizle
+        for (int i = 0; i < width; ++i) {
+            for (int j = 0; j < height; ++j) {
+                grid[i][j] = 0;
+            }
+        }
+    }
+
+    // Engel ekleme
+    void addObstacle(int x, int y) {
+        if (x >= 0 && x < width && y >= 0 && y < height) {
+            grid[x][y] = 1;
+        }
+    }
+
+    // A* algoritması
+    vector<Node> findPath(Node start, Node goal) {
+        // Açık ve kapalı kümeler
+        priority_queue<Node, vector<Node>, CompareNode> openSet;
+        unordered_map<Node, Node> cameFrom;
+        unordered_map<Node, int> gScore;
+        unordered_map<Node, int> fScore;
+
+        // Başlangıç düğümünü hazırla
+        gScore[start] = 0;
+        start.g = 0;
+        start.h = calculateHeuristic(start, goal);
+        start.f = start.h;
+        openSet.push(start);
+
+        while (!openSet.empty()) {
+            // En düşük f maliyetli düğümü al
+            Node current = openSet.top();
+            openSet.pop();
+
+            // Hedef kontrol
+            if (current.x == goal.x && current.y == goal.y) {
+                // Yolu geri izle
+                vector<Node> path;
+                path.push_back(current);
+
+                while (cameFrom.find(current) != cameFrom.end()) {
+                    current = cameFrom[current];
+                    path.push_back(current);
+                }
+
+                // Yolu tersine çevir
+                reverse(path.begin(), path.end());
+                return path;
+            }
+
+            // Komşuları incele
+            for (Node neighbor : getNeighbors(current)) {  // Değişiklik: const ref yerine kopya
+                // Maliyeti hesapla
+                int tentativeGScore = gScore[current] + 1;
+
+                // Daha iyi bir yol bulundu mu?
+                if (gScore.find(neighbor) == gScore.end() ||
+                    tentativeGScore < gScore[neighbor]) {
+                    // Yolu kaydet
+                    cameFrom[neighbor] = current;
+                    gScore[neighbor] = tentativeGScore;
+
+                    // f skoru hesapla
+                    neighbor.g = tentativeGScore;
+                    neighbor.h = calculateHeuristic(neighbor, goal);
+                    neighbor.f = neighbor.g + neighbor.h;
+
+                    openSet.push(neighbor);
+                }
+            }
+        }
+
+        // Yol bulunamadı
+        return {};
+    }
+
+    // Grid'i görselleştirme
+    void printGrid(const vector<Node>& path) {
+        for (int y = 0; y < height; ++y) {
+            for (int x = 0; x < width; ++x) {
+                bool inPath = false;
+
+                // Yol kontrolü
+                for (const auto& node : path) {
+                    if (node.x == x && node.y == y) {
+                        inPath = true;
+                        break;
+                    }
+                }
+
+                // Çıktı formatı
+                if (grid[x][y] == 1) {
+                    cout << "X "; // Engel
+                }
+                else if (inPath) {
+                    cout << "* "; // Yol
+                }
+                else {
+                    cout << ". "; // Boş alan
+                }
+            }
+            cout << std::endl;
+        }
+    }
+};
+
+int main() {
+    int width, height;
+
+    // Grid boyutlarını al
+    cout << "Grid genisligini girin (maks 50): ";
+    cin >> width;
+    cout << "Grid yuksekligini girin (maks 50): ";
+    cin >> height;
+
+    // Sınırları kontrol et
+    if (width <= 0 || width > MAX_GRID_SIZE ||
+        height <= 0 || height > MAX_GRID_SIZE) {
+        cout << "Gecersiz grid boyutlari!" << endl;
+        return 1;
+    }
+
+    // A* nesnesini oluştur
+    AStar astar(width, height);
+
+    // Engelleri al
+    int obstacleCount;
+    cout << "Kac engel eklemek istiyorsunuz? ";
+    cin >> obstacleCount;
+
+    cout << "Engel koordinatlarini girin (x y formatinda):" << endl;
+    for (int i = 0; i < obstacleCount; ++i) {
+        int x, y;
+        cin >> x >> y;
+
+        // Koordinat kontrolü
+        if (x < 0 || x >= width || y < 0 || y >= height) {
+            cout << "Gecersiz engel koordinati: (" << x << "," << y << ")" << endl;
+            return 1;
+        }
+
+        astar.addObstacle(x, y);
+    }
+
+    // Başlangıç ve hedef noktaları al
+    int startX, startY, goalX, goalY;
+    cout << "Baslangıc noktasini girin (x y): ";
+    cin >> startX >> startY;
+    cout << "Hedef noktasini girin (x y): ";
+    cin >> goalX >> goalY;
+
+    // Koordinat kontrolü
+    if (startX < 0 || startX >= width || startY < 0 || startY >= height ||
+        goalX < 0 || goalX >= width || goalY < 0 || goalY >= height) {
+        cout << "Gecersiz baslangıc veya hedef koordinatlari!" << endl;
+        return 1;
+    }
+
+    // Düğümleri oluştur
+    Node start(startX, startY);
+    Node goal(goalX, goalY);
+
+    // Yolu bul
+    vector<Node> path = astar.findPath(start, goal);
+
+    // Sonucu göster
+    if (path.empty()) {
+        cout << "Yol bulunamadi!" << endl;
+    } else {
+        cout << "\nBulunan yol:" << endl;
+        cout << "Baslangıc: (" << start.x << "," << start.y << ")" << endl;
+        cout << "Hedef: (" << goal.x << "," << goal.y << ")" << endl;
+
+        cout << "\nGrid Gorsellestirmesi:" << endl;
+        astar.printGrid(path);
+
+        cout << "\nYol Koordinatlari:" << endl;
+        for (const auto& node : path) {
+            cout << "(" << node.x << "," << node.y << ") ";
+        }
+        cout << endl;
+    }
+
+    return 0;
+}
+
